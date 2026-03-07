@@ -1,1 +1,1 @@
-### GoLogLint - is a linter for logging function on Golang
+### GoLogLint - is a linter for logging functions on Golang
