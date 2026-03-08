@@ -2,7 +2,10 @@ package checklogs
 
 import (
 	"go/ast"
+	"go/token"
 	"go/types"
+	"strings"
+	"unicode"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -34,9 +37,64 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		// message check WIP
+		message, ok := extractString(pass, call)
+		if !ok {
+			return
+		}
+		checkLogMessage(pass, call.Pos(), message)
 	})
+
 	return nil, nil
+}
+
+func checkLogMessage(pass *analysis.Pass, pos token.Pos, message string) {
+	// check if is not empty
+	if len(message) > 0 {
+		pass.Reportf(pos, "log-message cant be empty")
+	}
+
+	// check if lowercase
+	if !unicode.IsLower(rune(message[0])) {
+		pass.Reportf(pos, "log-message must be in lowercase")
+	}
+
+	// check if written in english
+	for _, r := range message {
+		if unicode.Is(unicode.Cyrillic, r) {
+			pass.Reportf(pos, "log-message must be in english")
+			return
+		}
+	}
+
+	// check if has special symbols
+	specialChars := "!?.:;,~@#$%^&*(){}[]<>/|+-*="
+	if strings.ContainsAny(message, specialChars) {
+		pass.Reportf(pos, "log-message cant contain any special symbols")
+	}
+
+	// check if has any sensitive data
+	potentialSensitiveData := []string{
+		"password", "passwd", "pwd",
+		"token", "api_key", "apikey", "secret",
+		"key", "credential", "auth",
+		"jwt", "access_token", "refresh_token",
+		"private_key", "public_key", "certificate",
+	}
+	for _, sensitive := range potentialSensitiveData {
+		if strings.Contains(message, sensitive) {
+			pass.Reportf(pos, "log-message cant contain any sensitive data %s", sensitive)
+			break
+		}
+	}
+}
+
+func extractString(pass *analysis.Pass, expression ast.Expr) (string, bool) {
+	lit, ok := expression.(*ast.BasicLit)
+	if !ok || lit.Kind != token.STRING {
+		return "", false
+	}
+
+	return strings.Trim(lit.Value, "\""), true
 }
 
 func isLogFunction(call *ast.CallExpr, pass *analysis.Pass) bool {
