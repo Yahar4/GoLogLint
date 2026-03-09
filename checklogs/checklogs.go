@@ -37,7 +37,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		message, ok := extractString(pass, call)
+		message, ok := extractString(call.Args[0])
 		if !ok {
 			return
 		}
@@ -49,13 +49,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 func checkLogMessage(pass *analysis.Pass, pos token.Pos, message string) {
 	// check if is not empty
-	if len(message) > 0 {
+	if len(message) == 0 {
 		pass.Reportf(pos, "log-message cant be empty")
-	}
-
-	// check if lowercase
-	if !unicode.IsLower(rune(message[0])) {
-		pass.Reportf(pos, "log-message must be in lowercase")
 	}
 
 	// check if written in english
@@ -64,12 +59,6 @@ func checkLogMessage(pass *analysis.Pass, pos token.Pos, message string) {
 			pass.Reportf(pos, "log-message must be in english")
 			return
 		}
-	}
-
-	// check if has special symbols
-	specialChars := "!?.:;,~@#$%^&*(){}[]<>/|+-*="
-	if strings.ContainsAny(message, specialChars) {
-		pass.Reportf(pos, "log-message cant contain any special symbols")
 	}
 
 	// check if has any sensitive data
@@ -82,13 +71,24 @@ func checkLogMessage(pass *analysis.Pass, pos token.Pos, message string) {
 	}
 	for _, sensitive := range potentialSensitiveData {
 		if strings.Contains(message, sensitive) {
-			pass.Reportf(pos, "log-message cant contain any sensitive data %s", sensitive)
+			pass.Reportf(pos, "log-message cant contain any sensitive data")
 			break
 		}
 	}
+
+	// check if has special symbols
+	specialChars := "!?~@#$%^&*(){}[]<>/|+-*="
+	if strings.ContainsAny(message, specialChars) {
+		pass.Reportf(pos, "log-message cant contain any special symbols")
+	}
+
+	// check if lowercase
+	if unicode.IsLetter(rune(message[0])) && unicode.Is(unicode.Latin, rune(message[0])) && !unicode.IsLower(rune(message[0])) {
+		pass.Reportf(pos, "log-message must be in lowercase")
+	}
 }
 
-func extractString(pass *analysis.Pass, expression ast.Expr) (string, bool) {
+func extractString(expression ast.Expr) (string, bool) {
 	lit, ok := expression.(*ast.BasicLit)
 	if !ok || lit.Kind != token.STRING {
 		return "", false
@@ -102,9 +102,9 @@ func isLogFunction(call *ast.CallExpr, pass *analysis.Pass) bool {
 
 	switch expression := function.(type) {
 	case *ast.SelectorExpr:
-		isSelectorExpr(expression, pass)
+		return isSelectorExpr(expression, pass)
 	case *ast.Ident:
-		isIdentExpr(expression, pass)
+		return isIdentExpr(expression, pass)
 	default:
 		return false
 	}
@@ -113,6 +113,17 @@ func isLogFunction(call *ast.CallExpr, pass *analysis.Pass) bool {
 }
 
 func isSelectorExpr(expression *ast.SelectorExpr, pass *analysis.Pass) bool {
+	if ident, ok := expression.X.(*ast.Ident); ok {
+		if obj := pass.TypesInfo.Uses[ident]; obj != nil {
+			if pkgName, ok := obj.(*types.PkgName); ok {
+				pkgPath := pkgName.Imported().Path()
+				if pkgPath == "log/slog" || pkgPath == "go.uber.org/zap" {
+					return isLogMethod(expression.Sel.Name)
+				}
+			}
+		}
+	}
+
 	exprTypeX := pass.TypesInfo.TypeOf(expression.X)
 	if exprTypeX == nil {
 		return false
@@ -144,7 +155,7 @@ func isIdentExpr(expression *ast.Ident, pass *analysis.Pass) bool {
 	switch pkg.Path() {
 	case "log/slog":
 		return isLogMethod(expression.Name)
-	case "go.uber/zap":
+	case "go.uber.org/zap":
 		return isLogMethod(expression.Name)
 	default:
 		return false
@@ -182,7 +193,7 @@ func isLoggerType(inputType types.Type) bool {
 	switch pkg.Path() {
 	case "log/slog":
 		return obj.Name() == "Logger"
-	case "go.uber/zap":
+	case "go.uber.org/zap":
 		return obj.Name() == "Logger" || obj.Name() == "SugaredLogger"
 	default:
 		return false
