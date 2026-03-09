@@ -75,3 +75,21 @@ go build -buildmode=plugin plugin/gologlint.go
 go install github.com/Yahar4/GoLogLint/cmd/gologlint@latest
 gologlint --help 
 ```
+
+#### Direct usage:
+
+```bash
+# Analyze all packages in current directory and subdirectories
+gologlint ./...
+
+# Analyze specific packages
+gologlint ./pkg/...
+gologlint ./cmd/...
+
+# Analyze specific files
+gologlint main.go
+gologlint ./pkg/checklogs/checklogs.go
+
+# Analyze multiple paths
+gologlint ./pkg/... ./cmd/...
+```
