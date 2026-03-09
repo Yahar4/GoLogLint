@@ -68,3 +68,10 @@ main.go:10:2: log message must be in english
 ```Go
 go build -buildmode=plugin plugin/gologlint.go
 ```
+
+### Or you can download it using `go install` and verify the installation
+
+```bash
+go install github.com/Yahar4/GoLogLint/cmd/gologlint@latest
+gologlint --help 
+```
