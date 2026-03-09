@@ -3,3 +3,6 @@ run:
 
 build:
 	go build -o gologlint
+
+build-plugin:
+	go build -buildmode=plugin plugin/gologlint.go
