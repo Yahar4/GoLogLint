@@ -93,3 +93,30 @@ gologlint ./pkg/checklogs/checklogs.go
 # Analyze multiple paths
 gologlint ./pkg/... ./cmd/...
 ```
+
+## Extra:
+
+### CI/CD integration
+
+Github Actions
+```yaml
+# .github/workflows/log-linter.yml
+name: log-linter
+on: [push, pull_request]
+
+jobs:
+  lint-logs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.1'
+          
+      - name: Install gologlint
+        run: go install github.com/Yahar4/GoLogLint/cmd/gologlint@latest
+        
+      - name: Run log linter
+        run: gologlint ./...
+```
